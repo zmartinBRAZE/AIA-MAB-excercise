@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A/B and MAB Test Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .tab-btn.active {
+            border-color: #4f46e5;
+            background-color: #eef2ff;
+            color: #4338ca;
+        }
+        .chart-container {
+            position: relative;
+            height: 40vh;
+            width: 100%;
+        }
+        /* Custom slider styles */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 8px;
+            background: #d1d5db;
+            border-radius: 5px;
+            outline: none;
+            opacity: 0.7;
+            transition: opacity .2s;
+        }
+        input[type="range"]:hover {
+            opacity: 1;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #4f46e5;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #4f46e5;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-slate-900">Marketing Campaign Simulator</h1>
+            <p class="text-slate-600 mt-2">Compare campaigns with A/B testing and Multi-Armed Bandit simulations.</p>
+        </header>
+
+        <!-- Tab Controls -->
+        <div class="mb-6 border-b border-slate-200">
+            <nav class="flex space-x-4" aria-label="Tabs">
+                <button id="tab1-btn" class="tab-btn active font-medium px-4 py-2 text-sm rounded-t-lg border-b-2 border-transparent hover:border-slate-300 hover:text-slate-700 focus:outline-none">
+                    A/B Test Simulator
+                </button>
+                <button id="tab2-btn" class="tab-btn font-medium px-4 py-2 text-sm rounded-t-lg border-b-2 border-transparent hover:border-slate-300 hover:text-slate-700 focus:outline-none">
+                    Multi-Armed Bandit
+                </button>
+            </nav>
+        </div>
+
+        <!-- Tab Content -->
+        <main id="main-content">
+            <!-- Task 1: A/B Test Simulator -->
+            <div id="tab1-content">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <!-- Step 1: Input Subjects -->
+                    <div id="subject-input-section" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                        <h2 class="text-2xl font-semibold mb-1">Step 1: Enter Subject Lines</h2>
+                        <p class="text-slate-500 mb-4">Provide 10 subject lines for your fictional email campaign.</p>
+                        <div id="subject-inputs" class="space-y-3"></div>
+                        <button id="save-subjects-btn" class="mt-6 w-full bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
+                            Save & Proceed to Testing
+                        </button>
+                    </div>
+
+                    <!-- Step 2: A/B Test -->
+                    <div id="ab-test-section" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hidden">
+                        <h2 class="text-2xl font-semibold mb-1">Step 2: Run A/B Test</h2>
+                        <p class="text-slate-500 mb-4">Select two subject lines to compare head-to-head.</p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <label for="subject-a" class="block text-sm font-medium text-slate-700">Campaign A</label>
+                                <select id="subject-a" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-slate-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"></select>
+                            </div>
+                            <div>
+                                <label for="subject-b" class="block text-sm font-medium text-slate-700">Campaign B</label>
+                                <select id="subject-b" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-slate-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"></select>
+                            </div>
+                        </div>
+                        <button id="run-test-btn" class="w-full bg-green-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200">
+                            Begin A/B Test (1,000 simulations)
+                        </button>
+                        <div id="test-error" class="text-red-600 text-sm mt-2 text-center"></div>
+                    </div>
+                </div>
+
+                <!-- A/B Results Section -->
+                <div id="results-section-ab" class="mt-8 bg-white p-6 rounded-xl shadow-sm border border-slate-200 hidden">
+                    <h2 class="text-2xl font-semibold mb-4 text-center">A/B Test Results</h2>
+                    <div id="winner-banner-ab" class="mb-6 p-4 rounded-lg text-center text-lg font-bold hidden"></div>
+                    <div class="chart-container mb-6"><canvas id="ab-chart"></canvas></div>
+                    <h3 class="text-xl font-semibold mb-3">A/B Test History</h3>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-slate-200">
+                            <thead class="bg-slate-50">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Time</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Winner</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Campaign A</th>
+                                    <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Revenue A ($)</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Campaign B</th>
+                                    <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Revenue B ($)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-table-body-ab" class="bg-white divide-y divide-slate-200"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Task 2: Multi-Armed Bandit -->
+            <div id="tab2-content" class="hidden">
+                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <!-- MAB Controls -->
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                        <h2 class="text-2xl font-semibold mb-1">Multi-Armed Bandit Settings</h2>
+                        <p class="text-slate-500 mb-4">Configure the epsilon-greedy algorithm to balance exploration and exploitation.</p>
+                        
+                        <div class="space-y-6">
+                            <div>
+                                <label for="epsilon-slider" class="block text-sm font-medium text-slate-700">Epsilon (ε) - Exploration Rate</label>
+                                <input type="range" id="epsilon-slider" min="0" max="1" step="0.01" value="0.1" class="mt-2">
+                                <div class="text-center font-semibold text-indigo-600 mt-2" id="epsilon-value">Explore: 10% / Exploit: 90%</div>
+                            </div>
+
+                            <div class="relative flex items-start">
+                                <div class="flex items-center h-5">
+                                    <input id="restrict-epsilon-checkbox" type="checkbox" class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-slate-300 rounded">
+                                </div>
+                                <div class="ml-3 text-sm">
+                                    <label for="restrict-epsilon-checkbox" class="font-medium text-slate-700">Use Restricted Epsilon</label>
+                                    <p class="text-slate-500">Limit exploration to the top N performers.</p>
+                                </div>
+                            </div>
+                            
+                            <div id="restricted-epsilon-options" class="hidden">
+                                <label for="top-n-select" class="block text-sm font-medium text-slate-700">Explore within Top N Campaigns</label>
+                                <select id="top-n-select" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-slate-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                                    <option>2</option>
+                                    <option>3</option>
+                                    <option>4</option>
+                                    <option>5</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <button id="run-mab-btn" class="mt-8 w-full bg-purple-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-colors duration-200">
+                            Begin MAB Test
+                        </button>
+                        <div id="mab-error" class="text-red-600 text-sm mt-2 text-center"></div>
+                    </div>
+                     <!-- Placeholder for MAB results to align grid -->
+                    <div id="results-section-mab" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                        <h2 class="text-2xl font-semibold mb-4 text-center">MAB Test Results</h2>
+                        <div id="winner-banner-mab" class="mb-6 p-4 rounded-lg text-center text-lg font-bold hidden"></div>
+                        <div class="chart-container mb-6"><canvas id="mab-chart"></canvas></div>
+                    </div>
+                </div>
+                <!-- MAB History Table -->
+                <div class="mt-8 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                    <h3 class="text-xl font-semibold mb-3">MAB Test History</h3>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-slate-200">
+                            <thead class="bg-slate-50">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Time</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Epsilon (ε)</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Restriction</th>
+                                    <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Total Revenue ($)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-table-body-mab" class="bg-white divide-y divide-slate-200"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- STATE MANAGEMENT ---
+        let subjects = [];
+        let abChartInstance = null;
+        let mabChartInstance = null;
+        const NUM_SUBJECTS = 10;
+        const NUM_SIMULATIONS = 1000;
+
+        // --- DOM ELEMENTS ---
+        const subjectInputsContainer = document.getElementById('subject-inputs');
+        const saveSubjectsBtn = document.getElementById('save-subjects-btn');
+        
+        // A/B Test Elements
+        const abTestSection = document.getElementById('ab-test-section');
+        const subjectASelect = document.getElementById('subject-a');
+        const subjectBSelect = document.getElementById('subject-b');
+        const runTestBtn = document.getElementById('run-test-btn');
+        const resultsSectionAB = document.getElementById('results-section-ab');
+        const winnerBannerAB = document.getElementById('winner-banner-ab');
+        const historyTableBodyAB = document.getElementById('history-table-body-ab');
+        const testError = document.getElementById('test-error');
+
+        // MAB Test Elements
+        const epsilonSlider = document.getElementById('epsilon-slider');
+        const epsilonValue = document.getElementById('epsilon-value');
+        const restrictCheckbox = document.getElementById('restrict-epsilon-checkbox');
+        const restrictedOptions = document.getElementById('restricted-epsilon-options');
+        const topNSelect = document.getElementById('top-n-select');
+        const runMabBtn = document.getElementById('run-mab-btn');
+        const mabError = document.getElementById('mab-error');
+        const resultsSectionMAB = document.getElementById('results-section-mab');
+        const winnerBannerMAB = document.getElementById('winner-banner-mab');
+        const historyTableBodyMAB = document.getElementById('history-table-body-mab');
+
+
+        // Tab Elements
+        const tab1Btn = document.getElementById('tab1-btn');
+        const tab2Btn = document.getElementById('tab2-btn');
+        const tab1Content = document.getElementById('tab1-content');
+        const tab2Content = document.getElementById('tab2-content');
+
+        // --- INITIALIZATION ---
+        function initializeInputs() {
+            subjectInputsContainer.innerHTML = Array.from({ length: NUM_SUBJECTS }, (_, i) => `
+                <div>
+                    <label for="subject-${i}" class="sr-only">Subject Line ${i + 1}</label>
+                    <input type="text" id="subject-${i}" class="block w-full shadow-sm sm:text-sm border-slate-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" placeholder="Subject Line #${i + 1}">
+                </div>
+            `).join('');
+        }
+        initializeInputs();
+
+        // --- TAB HANDLING ---
+        function switchTab(activeBtn, activeContent, inactiveBtn, inactiveContent) {
+            activeBtn.classList.add('active');
+            inactiveBtn.classList.remove('active');
+            activeContent.classList.remove('hidden');
+            inactiveContent.classList.add('hidden');
+        }
+
+        tab1Btn.addEventListener('click', () => switchTab(tab1Btn, tab1Content, tab2Btn, tab2Content));
+        tab2Btn.addEventListener('click', () => {
+            if (subjects.length === 0) {
+                alert("Please enter and save subject lines in the 'A/B Test Simulator' tab first.");
+                return;
+            }
+            switchTab(tab2Btn, tab2Content, tab1Btn, tab1Content);
+        });
+
+        // --- CORE LOGIC ---
+        function assignPerformance(subjectTexts) {
+            const revenueMeans = [5, 8, 11, 12, 15, 16, 19, 23, 35, 50].sort(() => 0.5 - Math.random());
+            return subjectTexts.map((text, i) => ({
+                id: i,
+                text: text,
+                performance: { mean: revenueMeans[i], stdDev: 5 }
+            }));
+        }
+
+        function randomNormal(mean, stdDev) {
+            let u1 = Math.random(), u2 = Math.random();
+            let z = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
+            return Math.max(0, z * stdDev + mean);
+        }
+
+        // --- EVENT LISTENERS ---
+        saveSubjectsBtn.addEventListener('click', () => {
+            const inputs = subjectInputsContainer.querySelectorAll('input');
+            const subjectTexts = Array.from(inputs).map(input => input.value.trim()).filter(Boolean);
+
+            if (subjectTexts.length < NUM_SUBJECTS) {
+                alert(`Please enter all ${NUM_SUBJECTS} subject lines.`);
+                return;
+            }
+
+            subjects = assignPerformance(subjectTexts);
+            console.log("Assigned Performance:", subjects);
+            
+            // Populate A/B test dropdowns
+            let optionsHTML = subjects.map(s => `<option value="${s.id}">${s.text}</option>`).join('');
+            subjectASelect.innerHTML = optionsHTML;
+            subjectBSelect.innerHTML = optionsHTML;
+            subjectBSelect.selectedIndex = 1;
+
+            abTestSection.classList.remove('hidden');
+            saveSubjectsBtn.textContent = 'Update Subject Lines';
+            alert('Subject lines saved! You can now proceed to A/B or MAB testing.');
+        });
+
+        // --- A/B TEST LOGIC ---
+        runTestBtn.addEventListener('click', () => {
+            const subjectAId = parseInt(subjectASelect.value);
+            const subjectBId = parseInt(subjectBSelect.value);
+
+            if (subjectAId === subjectBId) {
+                testError.textContent = 'Please select two different subject lines.';
+                return;
+            }
+            testError.textContent = '';
+
+            const campaignA = subjects.find(s => s.id === subjectAId);
+            const campaignB = subjects.find(s => s.id === subjectBId);
+
+            let cumulativeA = 0, cumulativeB = 0;
+            const historyA = [], historyB = [];
+
+            for (let i = 0; i < NUM_SIMULATIONS; i++) {
+                cumulativeA += randomNormal(campaignA.performance.mean, campaignA.performance.stdDev);
+                cumulativeB += randomNormal(campaignB.performance.mean, campaignB.performance.stdDev);
+                historyA.push(cumulativeA);
+                historyB.push(cumulativeB);
+            }
+
+            const winner = cumulativeA > cumulativeB ? campaignA : campaignB;
+
+            resultsSectionAB.classList.remove('hidden');
+            winnerBannerAB.classList.remove('hidden');
+            winnerBannerAB.textContent = `Winner: "${winner.text}" generated more revenue!`;
+            winnerBannerAB.className = 'mb-6 p-4 rounded-lg text-center text-lg font-bold bg-green-100 text-green-800';
+
+            updateABChart(historyA, historyB, campaignA.text, campaignB.text);
+            updateABHistory(winner, campaignA, campaignB, cumulativeA, cumulativeB);
+            resultsSectionAB.scrollIntoView({ behavior: 'smooth' });
+        });
+
+        // --- MAB TEST LOGIC ---
+        epsilonSlider.addEventListener('input', (e) => {
+            const explore = parseFloat(e.target.value) * 100;
+            const exploit = 100 - explore;
+            epsilonValue.textContent = `Explore: ${explore.toFixed(0)}% / Exploit: ${exploit.toFixed(0)}%`;
+        });
+
+        restrictCheckbox.addEventListener('change', (e) => {
+            restrictedOptions.classList.toggle('hidden', !e.target.checked);
+        });
+
+        runMabBtn.addEventListener('click', () => {
+            if (subjects.length === 0) {
+                mabError.textContent = "Please save subject lines on the A/B Test tab first.";
+                return;
+            }
+            mabError.textContent = '';
+
+            const epsilon = parseFloat(epsilonSlider.value);
+            const useRestriction = restrictCheckbox.checked;
+            const topN = parseInt(topNSelect.value);
+
+            // Simulation state
+            let cumulativeRevenue = 0;
+            const revenueHistory = [];
+            const campaignData = subjects.map(s => ({ ...s, pulls: 0, totalRevenue: 0 }));
+
+            for (let i = 0; i < NUM_SIMULATIONS; i++) {
+                let chosenCampaign;
+
+                // Decide to explore or exploit
+                if (Math.random() < epsilon) { // Explore
+                    let explorationPool = campaignData;
+                    if (useRestriction && i > 0) { // After at least one pull
+                        // Sort by average revenue so far
+                        const sortedCampaigns = [...campaignData].sort((a, b) => {
+                            const avgA = a.pulls > 0 ? a.totalRevenue / a.pulls : 0;
+                            const avgB = b.pulls > 0 ? b.totalRevenue / b.pulls : 0;
+                            return avgB - avgA;
+                        });
+                        explorationPool = sortedCampaigns.slice(0, topN);
+                    }
+                    chosenCampaign = explorationPool[Math.floor(Math.random() * explorationPool.length)];
+                } else { // Exploit
+                    // Find the best campaign based on average revenue so far
+                    chosenCampaign = campaignData.reduce((best, current) => {
+                        const avgBest = best.pulls > 0 ? best.totalRevenue / best.pulls : 0;
+                        const avgCurrent = current.pulls > 0 ? current.totalRevenue / current.pulls : 0;
+                        return avgCurrent > avgBest ? current : best;
+                    });
+                }
+
+                const revenue = randomNormal(chosenCampaign.performance.mean, chosenCampaign.performance.stdDev);
+                cumulativeRevenue += revenue;
+                
+                // Update the chosen campaign's stats
+                const campaignIndex = campaignData.findIndex(c => c.id === chosenCampaign.id);
+                campaignData[campaignIndex].pulls++;
+                campaignData[campaignIndex].totalRevenue += revenue;
+
+                revenueHistory.push(cumulativeRevenue);
+            }
+
+            const bestCampaign = campaignData.reduce((a, b) => (a.totalRevenue > b.totalRevenue) ? a : b);
+            
+            resultsSectionMAB.classList.remove('hidden');
+            winnerBannerMAB.classList.remove('hidden');
+            winnerBannerMAB.textContent = `Top Earner: "${bestCampaign.text}" with $${bestCampaign.totalRevenue.toFixed(2)}`;
+            winnerBannerMAB.className = 'mb-6 p-4 rounded-lg text-center text-lg font-bold bg-purple-100 text-purple-800';
+
+            updateMABChart(revenueHistory, campaignData);
+            updateMABHistory(epsilon, useRestriction ? `Top ${topN}` : 'None', cumulativeRevenue);
+            resultsSectionMAB.scrollIntoView({ behavior: 'smooth' });
+        });
+
+        // --- UI UPDATE FUNCTIONS ---
+        function updateABChart(dataA, dataB, labelA, labelB) {
+            const ctx = document.getElementById('ab-chart').getContext('2d');
+            if (abChartInstance) abChartInstance.destroy();
+            abChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: Array.from({ length: NUM_SIMULATIONS }, (_, i) => i + 1),
+                    datasets: [
+                        { label: `A: ${labelA}`, data: dataA, borderColor: 'rgba(79, 70, 229, 0.8)', backgroundColor: 'rgba(79, 70, 229, 0.1)', borderWidth: 2, pointRadius: 0, tension: 0.4 },
+                        { label: `B: ${labelB}`, data: dataB, borderColor: 'rgba(22, 163, 74, 0.8)', backgroundColor: 'rgba(22, 163, 74, 0.1)', borderWidth: 2, pointRadius: 0, tension: 0.4 }
+                    ]
+                },
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, title: { display: true, text: 'Cumulative Revenue ($)' }}, x: { title: { display: true, text: 'Simulations' }}}}
+            });
+        }
+
+        function updateABHistory(winner, campaignA, campaignB, revenueA, revenueB) {
+            const newRow = document.createElement('tr');
+            newRow.innerHTML = `
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${new Date().toLocaleTimeString()}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600">${winner.text}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${campaignA.text}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500 font-mono text-right">${`$${revenueA.toFixed(2)}`}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${campaignB.text}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500 font-mono text-right">${`$${revenueB.toFixed(2)}`}</td>
+            `;
+            historyTableBodyAB.prepend(newRow);
+        }
+
+        function updateMABChart(revenueHistory, campaignData) {
+            const ctx = document.getElementById('mab-chart').getContext('2d');
+            if (mabChartInstance) mabChartInstance.destroy();
+            mabChartInstance = new Chart(ctx, {
+                type: 'bar', // Changed to bar to show final results
+                data: {
+                    labels: campaignData.map(c => c.text),
+                    datasets: [{
+                        label: 'Total Revenue per Campaign',
+                        data: campaignData.map(c => c.totalRevenue),
+                        backgroundColor: 'rgba(147, 51, 234, 0.6)',
+                        borderColor: 'rgba(147, 51, 234, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    indexAxis: 'y', // Makes bars horizontal for readability
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: { x: { beginAtZero: true, title: { display: true, text: 'Total Revenue ($)' } } }
+                }
+            });
+        }
+
+        function updateMABHistory(epsilon, restriction, totalRevenue) {
+            const newRow = document.createElement('tr');
+            newRow.innerHTML = `
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${new Date().toLocaleTimeString()}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${epsilon.toFixed(2)}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${restriction}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500 font-mono text-right font-semibold">${`$${totalRevenue.toFixed(2)}`}</td>
+            `;
+            historyTableBodyMAB.prepend(newRow);
+        }
+    });
+    </script>
+</body>
+</html>
