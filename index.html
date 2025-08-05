@@ -152,29 +152,28 @@
                         
                         <div class="space-y-6">
                             <div>
-                                <label for="epsilon-slider" class="block text-sm font-medium text-slate-700">Epsilon (ε) - Exploration Rate</label>
+                                <label for="epsilon-slider" class="block text-sm font-medium text-slate-700">Starting Epsilon (ε)</label>
                                 <input type="range" id="epsilon-slider" min="0" max="1" step="0.01" value="0.1" class="mt-2">
                                 <div class="text-center font-semibold text-indigo-600 mt-2" id="epsilon-value">Explore: 10% / Exploit: 90%</div>
                             </div>
 
                             <div class="relative flex items-start">
                                 <div class="flex items-center h-5">
-                                    <input id="restrict-epsilon-checkbox" type="checkbox" class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-slate-300 rounded">
+                                    <input id="decay-toggle-checkbox" type="checkbox" class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-slate-300 rounded">
                                 </div>
                                 <div class="ml-3 text-sm">
-                                    <label for="restrict-epsilon-checkbox" class="font-medium text-slate-700">Use Restricted Epsilon</label>
-                                    <p class="text-slate-500">Limit exploration to the top N performers.</p>
+                                    <label for="decay-toggle-checkbox" class="font-medium text-slate-700">Enable Epsilon Decay</label>
+                                    <p class="text-slate-500">Gradually reduce exploration over time.</p>
                                 </div>
                             </div>
                             
-                            <div id="restricted-epsilon-options" class="hidden">
-                                <label for="top-n-select" class="block text-sm font-medium text-slate-700">Explore within Top N Campaigns</label>
-                                <select id="top-n-select" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-slate-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
-                                    <option>2</option>
-                                    <option>3</option>
-                                    <option>4</option>
-                                    <option>5</option>
-                                </select>
+                            <div id="decay-options" class="hidden">
+                                <label for="decay-rate-slider" class="block text-sm font-medium text-slate-700">Decay Rate</label>
+                                <input type="range" id="decay-rate-slider" min="1" max="100" step="1" value="50" class="mt-2">
+                                <div class="flex justify-between text-xs text-slate-500">
+                                    <span>Slower</span>
+                                    <span>Faster</span>
+                                </div>
                             </div>
                         </div>
 
@@ -204,8 +203,8 @@
                             <thead class="bg-slate-50">
                                 <tr>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Time</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Epsilon (ε)</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Restriction</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Start ε</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Decay</th>
                                     <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Total Revenue ($)</th>
                                 </tr>
                             </thead>
@@ -275,9 +274,9 @@
         // MAB Test Elements
         const epsilonSlider = document.getElementById('epsilon-slider');
         const epsilonValue = document.getElementById('epsilon-value');
-        const restrictCheckbox = document.getElementById('restrict-epsilon-checkbox');
-        const restrictedOptions = document.getElementById('restricted-epsilon-options');
-        const topNSelect = document.getElementById('top-n-select');
+        const decayToggleCheckbox = document.getElementById('decay-toggle-checkbox');
+        const decayOptions = document.getElementById('decay-options');
+        const decayRateSlider = document.getElementById('decay-rate-slider');
         const runMabBtn = document.getElementById('run-mab-btn');
         const mabError = document.getElementById('mab-error');
         const resultsSectionMAB = document.getElementById('results-section-mab');
@@ -329,7 +328,6 @@
             return subjectTexts.map((text, i) => ({
                 id: i,
                 text: text,
-                // Increased stdDev for more variance
                 performance: { mean: revenueMeans[i], stdDev: 15 } 
             }));
         }
@@ -363,20 +361,15 @@
             saveSubjectsBtn.textContent = 'Update Subject Lines';
             alert('Subject lines saved! You can now proceed to A/B or MAB testing.');
         });
-
-        // --- A/B TEST LOGIC ---
-        runTestBtn.addEventListener('click', () => {
-             // ... (A/B logic remains the same)
-        });
-
+        
         // --- MAB TEST LOGIC ---
         epsilonSlider.addEventListener('input', (e) => {
             const explore = parseFloat(e.target.value) * 100;
             epsilonValue.textContent = `Explore: ${explore.toFixed(0)}% / Exploit: ${(100 - explore).toFixed(0)}%`;
         });
 
-        restrictCheckbox.addEventListener('change', (e) => {
-            restrictedOptions.classList.toggle('hidden', !e.target.checked);
+        decayToggleCheckbox.addEventListener('change', (e) => {
+            decayOptions.classList.toggle('hidden', !e.target.checked);
         });
 
         runMabBtn.addEventListener('click', () => {
@@ -386,9 +379,10 @@
             }
             mabError.textContent = '';
 
-            const epsilon = parseFloat(epsilonSlider.value);
-            const useRestriction = restrictCheckbox.checked;
-            const topN = parseInt(topNSelect.value);
+            const initialEpsilon = parseFloat(epsilonSlider.value);
+            const useDecay = decayToggleCheckbox.checked;
+            // Map slider (1-100) to a decay rate for the formula
+            const decayRate = parseFloat(decayRateSlider.value) / 1000; 
 
             // Reset and prepare for simulation
             detailedMabLog = [];
@@ -397,14 +391,16 @@
             const campaignData = subjects.map(s => ({ ...s, pulls: 0, totalRevenue: 0 }));
 
             for (let i = 0; i < NUM_SIMULATIONS; i++) {
+                let currentEpsilon = initialEpsilon;
+                if (useDecay) {
+                    // Exponential decay formula
+                    currentEpsilon = initialEpsilon * Math.exp(-decayRate * i);
+                }
+
                 let chosenCampaign;
-                if (Math.random() < epsilon) { // Explore
-                    let explorationPool = campaignData;
-                    if (useRestriction && i > 0) {
-                        const sortedCampaigns = [...campaignData].sort((a, b) => (b.pulls > 0 ? b.totalRevenue / b.pulls : 0) - (a.pulls > 0 ? a.totalRevenue / a.pulls : 0));
-                        explorationPool = sortedCampaigns.slice(0, topN);
-                    }
-                    chosenCampaign = explorationPool[Math.floor(Math.random() * explorationPool.length)];
+                if (Math.random() < currentEpsilon) { // Explore
+                    // Exploration is always from the full set of campaigns
+                    chosenCampaign = campaignData[Math.floor(Math.random() * campaignData.length)];
                 } else { // Exploit
                     chosenCampaign = campaignData.reduce((best, current) => ((current.pulls > 0 ? current.totalRevenue / current.pulls : 0) > (best.pulls > 0 ? best.totalRevenue / best.pulls : 0) ? current : best));
                 }
@@ -432,7 +428,8 @@
             // Update charts and history
             updateMABCumulativeChart(revenueHistory);
             updateMABBarChart(campaignData);
-            updateMABHistory(epsilon, useRestriction ? `Top ${topN}` : 'None', cumulativeRevenue);
+            const decayStatus = useDecay ? `On (Rate: ${decayRateSlider.value})` : 'Off';
+            updateMABHistory(initialEpsilon, decayStatus, cumulativeRevenue);
             
             // Show log button and scroll
             showLogBtn.classList.remove('hidden');
@@ -461,14 +458,6 @@
 
 
         // --- UI UPDATE FUNCTIONS ---
-        function updateABChart(dataA, dataB, labelA, labelB) {
-            // ... (A/B Chart logic remains the same)
-        }
-
-        function updateABHistory(winner, campaignA, campaignB, revenueA, revenueB) {
-            // ... (A/B History logic remains the same)
-        }
-        
         function updateMABCumulativeChart(revenueHistory) {
             const ctx = document.getElementById('mab-cumulative-chart').getContext('2d');
             if (mabCumulativeChartInstance) mabCumulativeChartInstance.destroy();
@@ -509,12 +498,12 @@
             });
         }
 
-        function updateMABHistory(epsilon, restriction, totalRevenue) {
+        function updateMABHistory(epsilon, decayStatus, totalRevenue) {
             const newRow = document.createElement('tr');
             newRow.innerHTML = `
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${new Date().toLocaleTimeString()}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${epsilon.toFixed(2)}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${restriction}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${decayStatus}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500 font-mono text-right font-semibold">${`$${totalRevenue.toFixed(2)}`}</td>
             `;
             historyTableBodyMAB.prepend(newRow);
