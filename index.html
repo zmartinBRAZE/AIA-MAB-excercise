@@ -95,6 +95,9 @@
                         <button id="save-subjects-btn" class="mt-6 w-full bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
                             Save & Proceed to Testing
                         </button>
+                        <button id="use-defaults-btn" class="mt-3 w-full bg-slate-200 text-slate-800 font-semibold py-2 px-4 rounded-lg hover:bg-slate-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-400 transition-colors duration-200">
+                            Use Default Subject Lines
+                        </button>
                     </div>
 
                     <!-- Step 2: A/B Test -->
@@ -260,6 +263,7 @@
         // --- DOM ELEMENTS ---
         const subjectInputsContainer = document.getElementById('subject-inputs');
         const saveSubjectsBtn = document.getElementById('save-subjects-btn');
+        const useDefaultsBtn = document.getElementById('use-defaults-btn');
         
         // A/B Test Elements
         const abTestSection = document.getElementById('ab-test-section');
@@ -338,13 +342,13 @@
             return Math.max(0, z * stdDev + mean);
         }
 
-        // --- EVENT LISTENERS ---
-        saveSubjectsBtn.addEventListener('click', () => {
-            const inputs = subjectInputsContainer.querySelectorAll('input');
-            const subjectTexts = Array.from(inputs).map(input => input.value.trim()).filter(Boolean);
-
+        /**
+         * Takes an array of subject line strings, processes them, and updates the UI.
+         * @param {string[]} subjectTexts - Array of 10 subject line strings.
+         */
+        function saveAndProceed(subjectTexts) {
             if (subjectTexts.length < NUM_SUBJECTS) {
-                alert(`Please enter all ${NUM_SUBJECTS} subject lines.`);
+                alert(`Error: Not enough subject lines provided.`);
                 return;
             }
 
@@ -360,6 +364,42 @@
             abTestSection.classList.remove('hidden');
             saveSubjectsBtn.textContent = 'Update Subject Lines';
             alert('Subject lines saved! You can now proceed to A/B or MAB testing.');
+        }
+
+        // --- EVENT LISTENERS ---
+        saveSubjectsBtn.addEventListener('click', () => {
+            const inputs = subjectInputsContainer.querySelectorAll('input');
+            const subjectTexts = Array.from(inputs).map(input => input.value.trim()).filter(Boolean);
+
+            if (subjectTexts.length < NUM_SUBJECTS) {
+                alert(`Please enter all ${NUM_SUBJECTS} subject lines.`);
+                return;
+            }
+            saveAndProceed(subjectTexts);
+        });
+
+        useDefaultsBtn.addEventListener('click', () => {
+            const defaultSubjects = [
+                "Quick Question",
+                "Your Weekly Update",
+                "An Invitation For You",
+                "Don't Miss Out!",
+                "A Special Offer Inside",
+                "Your Next Steps",
+                "Following Up",
+                "Some Friendly Advice",
+                "Did You See This?",
+                "A Gift For You"
+            ];
+            
+            const inputs = subjectInputsContainer.querySelectorAll('input');
+            inputs.forEach((input, index) => {
+                if (index < defaultSubjects.length) {
+                    input.value = defaultSubjects[index];
+                }
+            });
+            
+            saveAndProceed(defaultSubjects);
         });
         
         // --- MAB TEST LOGIC ---
@@ -382,13 +422,11 @@
             const initialEpsilon = parseFloat(epsilonSlider.value);
             const useDecay = decayToggleCheckbox.checked;
             
-            // Calculate the linear decay amount based on the slider
             const sliderValue = parseFloat(decayRateSlider.value);
             const minDecay = 0.001; // 0.1% per test
             const maxDecay = 0.01;  // 1.0% per test
             const decayAmount = minDecay + ((sliderValue - 1) / 99) * (maxDecay - minDecay);
 
-            // Reset and prepare for simulation
             detailedMabLog = [];
             let cumulativeRevenue = 0;
             const payoutHistory = [];
@@ -397,7 +435,6 @@
             for (let i = 0; i < NUM_SIMULATIONS; i++) {
                 let currentEpsilon = initialEpsilon;
                 if (useDecay) {
-                    // Apply linear decay per test
                     currentEpsilon = Math.max(0, initialEpsilon - (decayAmount * i));
                 }
 
