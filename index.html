@@ -171,8 +171,8 @@
                                 <label for="decay-rate-slider" class="block text-sm font-medium text-slate-700">Decay Rate</label>
                                 <input type="range" id="decay-rate-slider" min="1" max="100" step="1" value="50" class="mt-2">
                                 <div class="flex justify-between text-xs text-slate-500">
-                                    <span>Slower</span>
-                                    <span>Faster</span>
+                                    <span>Slower (0.1%/test)</span>
+                                    <span>Faster (1.0%/test)</span>
                                 </div>
                             </div>
                         </div>
@@ -186,8 +186,8 @@
                     <div id="results-section-mab" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hidden">
                         <h2 class="text-2xl font-semibold mb-4 text-center">MAB Test Results</h2>
                         <div id="winner-banner-mab" class="mb-6 p-4 rounded-lg text-center text-lg font-bold hidden"></div>
-                        <h3 class="text-xl font-semibold mb-3 text-center">Cumulative Revenue Over Time</h3>
-                        <div class="chart-container mb-6"><canvas id="mab-cumulative-chart"></canvas></div>
+                        <h3 class="text-xl font-semibold mb-3 text-center">Payout per Simulation</h3>
+                        <div class="chart-container mb-6"><canvas id="mab-payout-chart"></canvas></div>
                         <h3 class="text-xl font-semibold mb-3 text-center">Final Revenue per Campaign</h3>
                         <div class="chart-container mb-6"><canvas id="mab-bar-chart"></canvas></div>
                          <button id="show-log-btn" class="mt-4 w-full bg-slate-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500 transition-colors duration-200 hidden">
@@ -253,7 +253,7 @@
         let detailedMabLog = []; // Stores the log for the last MAB run
         let abChartInstance = null;
         let mabBarChartInstance = null;
-        let mabCumulativeChartInstance = null;
+        let mabPayoutChartInstance = null;
         const NUM_SUBJECTS = 10;
         const NUM_SIMULATIONS = 1000;
 
@@ -381,25 +381,28 @@
 
             const initialEpsilon = parseFloat(epsilonSlider.value);
             const useDecay = decayToggleCheckbox.checked;
-            // Map slider (1-100) to a decay rate for the formula
-            const decayRate = parseFloat(decayRateSlider.value) / 1000; 
+            
+            // Calculate the linear decay amount based on the slider
+            const sliderValue = parseFloat(decayRateSlider.value);
+            const minDecay = 0.001; // 0.1% per test
+            const maxDecay = 0.01;  // 1.0% per test
+            const decayAmount = minDecay + ((sliderValue - 1) / 99) * (maxDecay - minDecay);
 
             // Reset and prepare for simulation
             detailedMabLog = [];
             let cumulativeRevenue = 0;
-            const revenueHistory = [];
+            const payoutHistory = [];
             const campaignData = subjects.map(s => ({ ...s, pulls: 0, totalRevenue: 0 }));
 
             for (let i = 0; i < NUM_SIMULATIONS; i++) {
                 let currentEpsilon = initialEpsilon;
                 if (useDecay) {
-                    // Exponential decay formula
-                    currentEpsilon = initialEpsilon * Math.exp(-decayRate * i);
+                    // Apply linear decay per test
+                    currentEpsilon = Math.max(0, initialEpsilon - (decayAmount * i));
                 }
 
                 let chosenCampaign;
                 if (Math.random() < currentEpsilon) { // Explore
-                    // Exploration is always from the full set of campaigns
                     chosenCampaign = campaignData[Math.floor(Math.random() * campaignData.length)];
                 } else { // Exploit
                     chosenCampaign = campaignData.reduce((best, current) => ((current.pulls > 0 ? current.totalRevenue / current.pulls : 0) > (best.pulls > 0 ? best.totalRevenue / best.pulls : 0) ? current : best));
@@ -412,26 +415,23 @@
                 campaignData[campaignIndex].pulls++;
                 campaignData[campaignIndex].totalRevenue += revenue;
 
-                revenueHistory.push(cumulativeRevenue);
+                payoutHistory.push(revenue);
                 detailedMabLog.push({ test: i + 1, subject: chosenCampaign.text, payout: revenue });
             }
 
             const bestCampaign = campaignData.reduce((a, b) => (a.totalRevenue > b.totalRevenue) ? a : b);
             
-            // Show results sections
             resultsSectionMAB.classList.remove('hidden');
             mabHistorySection.classList.remove('hidden');
             winnerBannerMAB.classList.remove('hidden');
             winnerBannerMAB.textContent = `Top Earner: "${bestCampaign.text}" with $${bestCampaign.totalRevenue.toFixed(2)}`;
             winnerBannerMAB.className = 'mb-6 p-4 rounded-lg text-center text-lg font-bold bg-purple-100 text-purple-800';
 
-            // Update charts and history
-            updateMABCumulativeChart(revenueHistory);
+            updateMABPayoutChart(payoutHistory);
             updateMABBarChart(campaignData);
-            const decayStatus = useDecay ? `On (Rate: ${decayRateSlider.value})` : 'Off';
+            const decayStatus = useDecay ? `Linear (Rate: ${decayRateSlider.value})` : 'Off';
             updateMABHistory(initialEpsilon, decayStatus, cumulativeRevenue);
             
-            // Show log button and scroll
             showLogBtn.classList.remove('hidden');
             resultsSectionMAB.scrollIntoView({ behavior: 'smooth' });
         });
@@ -458,16 +458,16 @@
 
 
         // --- UI UPDATE FUNCTIONS ---
-        function updateMABCumulativeChart(revenueHistory) {
-            const ctx = document.getElementById('mab-cumulative-chart').getContext('2d');
-            if (mabCumulativeChartInstance) mabCumulativeChartInstance.destroy();
-            mabCumulativeChartInstance = new Chart(ctx, {
+        function updateMABPayoutChart(payoutHistory) {
+            const ctx = document.getElementById('mab-payout-chart').getContext('2d');
+            if (mabPayoutChartInstance) mabPayoutChartInstance.destroy();
+            mabPayoutChartInstance = new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: Array.from({ length: NUM_SIMULATIONS }, (_, i) => i + 1),
                     datasets: [{
-                        label: 'Total Cumulative Revenue',
-                        data: revenueHistory,
+                        label: 'Payout per Simulation',
+                        data: payoutHistory,
                         borderColor: 'rgba(147, 51, 234, 0.8)',
                         backgroundColor: 'rgba(147, 51, 234, 0.1)',
                         borderWidth: 2,
@@ -475,7 +475,7 @@
                         tension: 0.4
                     }]
                 },
-                options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, title: { display: true, text: 'Cumulative Revenue ($)' }}, x: { title: { display: true, text: 'Simulations' }}}}
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, title: { display: true, text: 'Payout ($)' }}, x: { title: { display: true, text: 'Simulations' }}}}
             });
         }
 
